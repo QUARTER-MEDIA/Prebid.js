@@ -24,7 +24,8 @@ jobs:
 
       - name: Clone Prebid.js (Tag 9.53.1)
         run: |
-          git clone https://github.com/QUARTER-MEDIA/Prebid.js.git prebidjs
+          git clone --branch=9.53.1 --depth 1 --single-branch https://github.com/prebid/Prebid.js.git prebidjs
+
           cd prebidjs
           git checkout tags/9.53.1
           npm ci
