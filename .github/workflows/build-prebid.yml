@@ -43,7 +43,7 @@ jobs:
 
       - name: Commit & push build file
         env:
-          GH_TOKEN: ${{ secrets.GH_prebid }}
+          GH_TOKEN: ${{ secrets.GH_PREBID }}
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@users.noreply.github.com"
