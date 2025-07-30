@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout your repository
         uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GH_PREBID }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v3
@@ -40,11 +42,6 @@ jobs:
         run: |
           mkdir -p dist
           cp prebidjs/build/dist/prebid.js dist/prebid-9.53.1.js
-
-      - name: Checkout your repository
-        uses: actions/checkout@v3
-        with:
-          token: ${{ secrets.GH_PREBID }}
 
       - name: Commit & push build file
         env:
