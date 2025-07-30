@@ -45,6 +45,6 @@ jobs:
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@users.noreply.github.com"
-          git add -f dist/prebid.js
+          git add -f dist/prebid-9.53.1.js
           git commit -m "Build: prebid.js 9.53.1 mit angepassten Modulen"
           git push
