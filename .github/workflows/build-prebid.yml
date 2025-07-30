@@ -1,0 +1,49 @@
+name: Build Prebid.js 9.53.1
+
+on:
+  workflow_dispatch:  # Manuell startbar
+  push:
+    paths:
+      - '.github/workflows/build-prebid.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout your repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Clone Prebid.js (Tag 9.53.1)
+        run: |
+          git clone https://github.com/QUARTER-MEDIA/Prebid.js.git prebidjs
+          cd prebidjs
+          git checkout tags/9.53.1
+          npm ci
+
+      - name: Build Prebid.js mit ausgewählten Modulen
+        run: |
+          cd prebidjs
+          gulp build \
+            --modules=modules/paapi.js,modules/fpdModule.js,modules/rtdModule.js,modules/userId/index.js,modules/adagioBidAdapter.js,modules/adfBidAdapter.js,modules/appnexusBidAdapter.js,modules/connectadBidAdapter.js,modules/criteoBidAdapter.js,modules/dspxBidAdapter.js,modules/gumgumBidAdapter.js,modules/impactifyBidAdapter.js,modules/improvedigitalBidAdapter.js,modules/ixBidAdapter.js,modules/oguryBidAdapter.js,modules/orbidderBidAdapter.js,modules/pubmaticBidAdapter.js,modules/rubiconBidAdapter.js,modules/seedtagBidAdapter.js,modules/smartadserverBidAdapter.js,modules/sovrnBidAdapter.js,modules/stvBidAdapter.js,modules/taboolaBidAdapter.js,modules/teadsBidAdapter.js,modules/tripleliftBidAdapter.js,modules/visxBidAdapter.js,modules/yieldlabBidAdapter.js,modules/adagioAnalyticsAdapter.js,modules/agmaAnalyticsAdapter.js,modules/atsAnalyticsAdapter.js,modules/id5AnalyticsAdapter.js,modules/consentManagementTcf.js,modules/gptPreAuction.js,modules/tcfControl.js,modules/currency.js,modules/priceFloors.js,modules/instreamTracking.js,modules/paapiForGpt.js,modules/prebidServerBidAdapter.js,modules/schain.js,modules/topicsFpdModule.js,modules/videoModule.js,modules/adagioRtdProvider.js,modules/dfpAdServerVideo.js,modules/criteoIdSystem.js,modules/id5IdSystem.js,modules/lotamePanoramaIdSystem.js,modules/pairIdSystem.js,modules/pubmaticIdSystem.js,modules/identityLinkIdSystem.js,modules/sharedIdSystem.js,modules/taboolaIdSystem.js,modules/teadsIdSystem.js
+
+      - name: Kopiere gebaute Datei in Repository
+        run: |
+          mkdir -p dist
+          cp prebidjs/build/dist/prebid.js dist/prebid-9.53.1.js
+
+      - name: Commit & push build file
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@users.noreply.github.com"
+          git add dist/prebid-9.53.1.js
+          git commit -m "Build: prebid.js 9.53.1 mit angepassten Modulen"
+          git push
