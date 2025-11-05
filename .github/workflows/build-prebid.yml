@@ -52,4 +52,4 @@ jobs:
           git add -f dist/prebid-9.53.1.js
           git commit -m "Build: prebid.js 9.53.1 mit angepassten Modulen" || echo "Nothing to commit"
           git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/QUARTER-MEDIA/Prebid.js.git
-          git push origin HEAD:main
+          git push --force-with-lease origin HEAD:main
