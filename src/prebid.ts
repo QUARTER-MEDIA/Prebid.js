@@ -14,6 +14,7 @@ import {
   isFn,
   isGptPubadsDefined,
   isNumber,
+  isPlainObject,
   logError,
   logInfo,
   logMessage,
@@ -52,8 +53,8 @@ import {
   renderIfDeferred
 } from './adRendering.js';
 import {getHighestCpm} from './utils/reducers.js';
-import {fillVideoDefaults, ORTB_VIDEO_PARAMS, validateOrtbVideoFields} from './video.js';
-import {ORTB_BANNER_PARAMS, validateOrtbBannerFields} from './banner.js';
+import {fillVideoDefaults, ORTB_VIDEO_PARAMS} from './video.js';
+import {ORTB_BANNER_PARAMS} from './banner.js';
 import {BANNER, VIDEO} from './mediaTypes.js';
 import {delayIfPrerendering} from './utils/prerendering.js';
 import {type BidAdapter, type BidderSpec, newBidder} from './adapters/bidderFactory.js';
@@ -65,6 +66,7 @@ import type {ORTBRequest} from "./types/ortb/request.d.ts";
 import type {DeepPartial} from "./types/objects.d.ts";
 import type {AnyFunction, Wraps} from "./types/functions.d.ts";
 import type {BidderScopedSettings, BidderSettings} from "./bidderSettings.ts";
+import {ORTB_AUDIO_PARAMS, fillAudioDefaults} from './audio.ts';
 
 import {getGlobalVarName} from "./buildOptions.ts";
 
@@ -148,11 +150,11 @@ export function syncOrtb2(adUnit, mediaType) {
     const mediaTypesFieldValue = deepAccess(adUnit, `mediaTypes.${mediaType}.${key}`);
     const ortbFieldValue = deepAccess(adUnit, `ortb2Imp.${mediaType}.${key}`);
 
-    if (mediaTypesFieldValue == undefined && ortbFieldValue == undefined) {
+    if (mediaTypesFieldValue === undefined && ortbFieldValue === undefined) {
       // omitting the params if it's not defined on either of sides
-    } else if (mediaTypesFieldValue == undefined) {
+    } else if (mediaTypesFieldValue === undefined) {
       deepSetValue(adUnit, `mediaTypes.${mediaType}.${key}`, ortbFieldValue);
-    } else if (ortbFieldValue == undefined) {
+    } else if (ortbFieldValue === undefined) {
       deepSetValue(adUnit, `ortb2Imp.${mediaType}.${key}`, mediaTypesFieldValue);
     } else {
       logWarn(`adUnit ${adUnit.code}: specifies conflicting ortb2Imp.${mediaType}.${key} and mediaTypes.${mediaType}.${key}, the latter will be ignored`, adUnit);
@@ -201,8 +203,15 @@ function validateBannerMediaType(adUnit: AdUnit) {
     logError('Detected a mediaTypes.banner object without a proper sizes field.  Please ensure the sizes are listed like: [[300, 250], ...].  Removing invalid mediaTypes.banner object from request.');
     delete validatedAdUnit.mediaTypes.banner
   }
-  validateOrtbBannerFields(validatedAdUnit);
+  validateOrtbFields(validatedAdUnit, 'banner');
   syncOrtb2(validatedAdUnit, 'banner')
+  return validatedAdUnit;
+}
+
+function validateAudioMediaType(adUnit: AdUnit) {
+  const validatedAdUnit = deepClone(adUnit);
+  validateOrtbFields(validatedAdUnit, 'audio');
+  syncOrtb2(validatedAdUnit, 'audio');
   return validatedAdUnit;
 }
 
@@ -225,9 +234,43 @@ function validateVideoMediaType(adUnit: AdUnit) {
       delete validatedAdUnit.mediaTypes.video.playerSize;
     }
   }
-  validateOrtbVideoFields(validatedAdUnit);
+  validateOrtbFields(validatedAdUnit, 'video');
   syncOrtb2(validatedAdUnit, 'video');
   return validatedAdUnit;
+}
+
+export function validateOrtbFields(adUnit, type, onInvalidParam?) {
+  const mediaTypes = adUnit?.mediaTypes || {};
+  const params = mediaTypes[type];
+
+  const ORTB_PARAMS = {
+    banner: ORTB_BANNER_PARAMS,
+    audio: ORTB_AUDIO_PARAMS,
+    video: ORTB_VIDEO_PARAMS
+  }[type]
+
+  if (!isPlainObject(params)) {
+    logWarn(`validateOrtb${type}Fields: ${type}Params must be an object.`);
+    return;
+  }
+
+  if (params != null) {
+    Object.entries(params)
+      .forEach(([key, value]: any) => {
+        if (!ORTB_PARAMS.has(key)) {
+          return
+        }
+        const isValid = ORTB_PARAMS.get(key)(value);
+        if (!isValid) {
+          if (typeof onInvalidParam === 'function') {
+            onInvalidParam(key, value, adUnit);
+          } else {
+            delete params[key];
+            logWarn(`Invalid prop in adUnit "${adUnit.code}": Invalid value for mediaTypes.${type}.${key} ORTB property. The property has been removed.`);
+          }
+        }
+      });
+  }
 }
 
 function validateNativeMediaType(adUnit: AdUnit) {
@@ -332,6 +375,10 @@ if (FEATURES.VIDEO) {
   Object.assign(adUnitSetupChecks, { validateVideoMediaType });
 }
 
+if (FEATURES.AUDIO) {
+  Object.assign(adUnitSetupChecks, { validateAudioMediaType });
+}
+
 export const checkAdUnitSetup = hook('sync', function (adUnits: AdUnitDefinition[]) {
   const validatedAdUnits = [];
 
@@ -340,7 +387,7 @@ export const checkAdUnitSetup = hook('sync', function (adUnits: AdUnitDefinition
     if (adUnit == null) return;
 
     const mediaTypes = adUnit.mediaTypes;
-    let validatedBanner, validatedVideo, validatedNative;
+    let validatedBanner, validatedVideo, validatedNative, validatedAudio;
 
     if (mediaTypes.banner) {
       validatedBanner = validateBannerMediaType(adUnit);
@@ -356,7 +403,11 @@ export const checkAdUnitSetup = hook('sync', function (adUnits: AdUnitDefinition
       validatedNative = validatedVideo ? validateNativeMediaType(validatedVideo) : validatedBanner ? validateNativeMediaType(validatedBanner) : validateNativeMediaType(adUnit);
     }
 
-    const validatedAdUnit = Object.assign({}, validatedBanner, validatedVideo, validatedNative);
+    if (FEATURES.AUDIO && mediaTypes.audio) {
+      validatedAudio = validatedNative ? validateAudioMediaType(validatedNative) : validateAudioMediaType(adUnit);
+    }
+
+    const validatedAdUnit = Object.assign({}, validatedBanner, validatedVideo, validatedNative, validatedAudio);
 
     validatedAdUnits.push(validatedAdUnit);
   });
@@ -367,6 +418,9 @@ export const checkAdUnitSetup = hook('sync', function (adUnits: AdUnitDefinition
 function fillAdUnitDefaults(adUnits: AdUnitDefinition[]) {
   if (FEATURES.VIDEO) {
     adUnits.forEach(au => fillVideoDefaults(au))
+  }
+  if (FEATURES.AUDIO) {
+    adUnits.forEach(au => fillAudioDefaults(au))
   }
 }
 
@@ -747,7 +801,7 @@ export const requestBids = (function() {
     })
   }, 'requestBids');
 
-  return wrapHook(delegate, delayIfPrerendering(() => !config.getConfig('allowPrerendering'), function requestBids(options: RequestBidsOptions = {}) {
+  return wrapHook(delegate, logInvocation('requestBids', delayIfPrerendering(() => !config.getConfig('allowPrerendering'), function requestBids(options: RequestBidsOptions = {}) {
     // unlike the main body of `delegate`, this runs before any other hook has a chance to;
     // it's also not restricted in its return value in the way `async` hooks are.
 
@@ -763,10 +817,10 @@ export const requestBids = (function() {
     req.defer = defer({ promiseFactory: (r) => new Promise(r)})
     delegate.call(this, req);
     return req.defer.promise;
-  }));
+  })));
 })();
 
-addApiMethod('requestBids', requestBids as unknown as RequestBids);
+addApiMethod('requestBids', requestBids as unknown as RequestBids, false);
 
 export const startAuction = hook('async', function ({ bidsBackHandler, timeout: cbTimeout, adUnits: adUnitDefs, ttlBuffer, adUnitCodes, labels, auctionId, ortb2Fragments, metrics, defer }: StartAuctionOptions = {} as any) {
   const s2sBidders = getS2SBidderSet(config.getConfig('s2sConfig') || []);
@@ -796,7 +850,7 @@ export const startAuction = hook('async', function ({ bidsBackHandler, timeout: 
     const adUnitMediaTypes = Object.keys(adUnit.mediaTypes || { 'banner': 'banner' });
 
     // get the bidder's mediaTypes
-    const allBidders = adUnit.bids.map(bid => bid.bidder);
+    const allBidders = adUnit.bids.map(bid => bid.bidder).filter(Boolean);
     const bidderRegistry = adapterManager.bidderRegistry;
 
     const bidders = allBidders.filter(bidder => !s2sBidders.has(bidder));
@@ -837,7 +891,6 @@ export const startAuction = hook('async', function ({ bidsBackHandler, timeout: 
         tids[au.code] = tid;
       }
       au.transactionId = tid;
-      deepSetValue(au, 'ortb2Imp.ext.tid', tid);
     });
     const auction = auctionManager.createAuction({
       adUnits,
@@ -1115,6 +1168,14 @@ addApiMethod('setBidderConfig', config.setBidderConfig);
 
 pbjsInstance.que.push(() => listenMessagesFromCreative());
 
+let queSetupComplete;
+
+export function resetQueSetup() {
+  queSetupComplete = defer<void>();
+}
+
+resetQueSetup();
+
 /**
  * This queue lets users load Prebid asynchronously, but run functions the same way regardless of whether it gets loaded
  * before or after their script executes. For example, given the code:
@@ -1136,15 +1197,17 @@ pbjsInstance.que.push(() => listenMessagesFromCreative());
  * @alias module:pbjs.que.push
  */
 function quePush(command) {
-  if (typeof command === 'function') {
-    try {
-      command.call();
-    } catch (e) {
-      logError('Error processing command :', e.message, e.stack);
+  queSetupComplete.promise.then(() => {
+    if (typeof command === 'function') {
+      try {
+        command.call();
+      } catch (e) {
+        logError('Error processing command :', e.message, e.stack);
+      }
+    } else {
+      logError(`Commands written into ${getGlobalVarName()}.cmd.push must be wrapped in a function`);
     }
-  } else {
-    logError(`Commands written into ${getGlobalVarName()}.cmd.push must be wrapped in a function`);
-  }
+  })
 }
 
 async function _processQueue(queue) {
@@ -1170,8 +1233,12 @@ const processQueue = delayIfPrerendering(() => pbjsInstance.delayPrerendering, a
   pbjsInstance.que.push = pbjsInstance.cmd.push = quePush;
   insertLocatorFrame();
   hook.ready();
-  await _processQueue(pbjsInstance.que);
-  await _processQueue(pbjsInstance.cmd);
+  try {
+    await _processQueue(pbjsInstance.que);
+    await _processQueue(pbjsInstance.cmd);
+  } finally {
+    queSetupComplete.resolve();
+  }
 })
 addApiMethod('processQueue', processQueue, false);
 
