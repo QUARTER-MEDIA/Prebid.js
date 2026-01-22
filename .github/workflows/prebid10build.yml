@@ -4,7 +4,7 @@ on:
   workflow_dispatch:  # Manuell startbar
   push:
     paths:
-      - '.github/workflows/build-prebid.yml'
+      - '.github/workflows/prebid10build.yml'
 
 jobs:
   build:
