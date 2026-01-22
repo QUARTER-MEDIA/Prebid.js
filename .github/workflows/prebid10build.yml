@@ -1,0 +1,56 @@
+name: Build Prebid.js 10.18.0
+
+on:
+  workflow_dispatch:  # Manuell startbar
+  push:
+    paths:
+      - '.github/workflows/build-prebid.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout your repository
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GH_PREBID }}
+          fetch-depth: 0  # <– wichtig: vollständige Historie
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Clone Prebid.js (Tag 10.18.0)
+        run: |
+          git clone --branch=10.18.0 --depth 1 --single-branch https://github.com/prebid/Prebid.js.git prebidjs
+
+          cd prebidjs
+          git checkout tags/10.18.0
+          npm ci
+
+      - name: Build Prebid.js mit ausgewählten Modulen
+        run: |
+          cd prebidjs
+          gulp build \
+            --modules=intentIqAnalyticsAdapter,intentIqIdSystem,paapi,fpdModule,rtdModule,userId,adfBidAdapter,appnexusBidAdapter,connectadBidAdapter,criteoBidAdapter,dspxBidAdapter,gumgumBidAdapter,improvedigitalBidAdapter,inmobiBidAdapter,ixBidAdapter,oguryBidAdapter,orbidderBidAdapter,pubmaticBidAdapter,rubiconBidAdapter,seedtagBidAdapter,smartadserverBidAdapter,stvBidAdapter,taboolaBidAdapter,teadsBidAdapter,tripleliftBidAdapter,visxBidAdapter,yieldlabBidAdapter,agmaAnalyticsAdapter,atsAnalyticsAdapter,id5AnalyticsAdapter,consentManagementTcf,gptPreAuction,tcfControl,currency,priceFloors,instreamTracking,paapiForGpt,prebidServerBidAdapter,schain,topicsFpdModule,videoModule,dfpAdServerVideo,criteoIdSystem,id5IdSystem,lotamePanoramaIdSystem,pairIdSystem,pubmaticIdSystem,identityLinkIdSystem,sharedIdSystem,taboolaIdSystem,teadsIdSystem
+
+      - name: Kopiere gebaute Datei in Repository
+        run: |
+          mkdir -p dist
+          cp prebidjs/build/dist/prebid.js dist/prebid-10.18.0.js
+
+      - name: Commit & push build file
+        env:
+          GH_TOKEN: ${{ secrets.GH_PREBID }}
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@users.noreply.github.com"
+          git add -f dist/prebid-10.18.0.js
+          git commit -m "Build: prebid.js 10.18.0 mit angepassten Modulen" || echo "Nothing to commit"
+          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/QUARTER-MEDIA/Prebid.js.git
+          git push --force-with-lease origin HEAD:main
