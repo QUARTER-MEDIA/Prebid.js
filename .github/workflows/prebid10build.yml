@@ -1,4 +1,4 @@
-name: Build Prebid.js 10.18.0
+name: Build Prebid.js 10.24.0
 
 on:
   workflow_dispatch:  # Manuell startbar
@@ -25,12 +25,12 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Clone Prebid.js (Tag 10.18.0)
+      - name: Clone Prebid.js (Tag 10.24.0)
         run: |
-          git clone --branch=10.18.0 --depth 1 --single-branch https://github.com/prebid/Prebid.js.git prebidjs
+          git clone --branch=10.24.0 --depth 1 --single-branch https://github.com/prebid/Prebid.js.git prebidjs
 
           cd prebidjs
-          git checkout tags/10.18.0
+          git checkout tags/10.24.0
           npm ci
 
       - name: Build Prebid.js mit ausgewählten Modulen
@@ -42,7 +42,7 @@ jobs:
       - name: Kopiere gebaute Datei in Repository
         run: |
           mkdir -p dist
-          cp prebidjs/build/dist/prebid.js dist/prebid-10.18.0.js
+          cp prebidjs/build/dist/prebid.js dist/prebid-10.24.0.js
 
       - name: Commit & push build file
         env:
@@ -50,7 +50,7 @@ jobs:
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@users.noreply.github.com"
-          git add -f dist/prebid-10.18.0.js
-          git commit -m "Build: prebid.js 10.18.0 mit angepassten Modulen" || echo "Nothing to commit"
+          git add -f dist/prebid-10.24.0.js
+          git commit -m "Build: prebid.js 10.24.0 mit angepassten Modulen" || echo "Nothing to commit"
           git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/QUARTER-MEDIA/Prebid.js.git
           git push --force-with-lease origin HEAD:main
